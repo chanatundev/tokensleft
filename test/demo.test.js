@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DEFAULT_DEMO_IDS, makeDemoProviders } from '../lib/demo.js';
-import { stripBlessedTags } from '../lib/format.js';
 import { parseArgs, runCli } from '../lib/cli.js';
 
 const ALL_IDS = ['claude', 'codex', 'gemini', 'kimi', 'copilot', 'grok', 'antigravity', 'opencode', 'zai'];
@@ -90,21 +89,12 @@ test('demo fixtures follow current live provider shapes', async () => {
   assert.deepEqual(snapshots.kimi.items.filter((item) => item.kind === 'usage').map((item) => item.percent), [34, 38]);
   assert.deepEqual(snapshots.kimi.local.models.map((entry) => entry.model), ['kimi-code/k3', 'kimi-code/kimi-for-coding']);
   assert.equal(snapshots.kimi.local.models[0].today.hasCost, true);
-  const kimiDetail = stripBlessedTags(providers.kimi.render(snapshots.kimi, 120, 'detail'));
-  const kimiCompact = stripBlessedTags(providers.kimi.render(snapshots.kimi, 120, 'compact'));
-  assert.match(kimiDetail, /Allegretto[\s\S]*Shared quota[\s\S]*Parallel[\s\S]*Models/);
-  assert.match(kimiDetail, /Local usage by model[\s\S]*cached in[\s\S]*k3/);
-  assert.match(kimiCompact, /Allegretto/);
-  assert.doesNotMatch(kimiCompact, /Shared quota|Parallel|Models|Local usage by model/);
-  assert.match(kimiCompact, /Weekly limit[\s\S]*5h limit[\s\S]*Extra Usage/);
   assert.deepEqual(snapshots.antigravity.items.map((item) => [item.label, item.percent]), [
     ['Gemini 5h', 0],
     ['Gemini weekly', 0],
     ['Claude/GPT 5h', 0],
     ['Claude/GPT weekly', 0],
   ]);
-  assert.match(stripBlessedTags(providers.antigravity.render(snapshots.antigravity, 120, 'detail')), /Local usage by model[\s\S]*cached in/);
-  assert.doesNotMatch(providers.antigravity.render(snapshots.antigravity, 120, 'compact'), /Local usage by model/);
 
   assert.deepEqual(snapshots.copilot.items.map((item) => item.label), ['Premium']);
   assert.deepEqual(snapshots.zai.results.map((result) => result.account.name), ['Account 1', 'Account 2']);
@@ -142,7 +132,6 @@ test('only the first Codex demo reset credit expires within the next hour', asyn
   assert.equal(resets.details.length, 5);
   assert.match(resets.details[0], /^expires \d+m \d+s \(.+\)$/);
   assert.ok(resets.details.slice(1).every((line) => /^expires \d+d \d+h \(.+\)$/.test(line)));
-  assert.match(stripBlessedTags(provider.render(snapshot, 100, 'compact')), /⚠ next expires \d+m \d+s/);
 });
 
 test('CLI default demo uses the curated live-shaped provider set', async () => {

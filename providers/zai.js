@@ -1,12 +1,9 @@
 import { claudeConfigDir, discoverClaudeSettingsKeys, matchesHost } from '../lib/claude-settings.js';
 import { readRefreshMs, splitCsv } from '../lib/env.js';
 import { buildUsageItem, toDate } from '../lib/forecast.js';
-import { escapeBlessed, formatNumber, jsonPreview, maskKey } from '../lib/format.js';
+import { formatNumber, jsonPreview, maskKey } from '../lib/format.js';
 import { fetchJsonResult } from '../lib/http.js';
-import { renderLocalUsage } from '../lib/local-usage.js';
-import { COLOR } from '../lib/palette.js';
 import { multiAccountHeaderStatus, usageAlertItems } from '../lib/provider.js';
-import { formatUsageItem, formatUsageItemCompact } from '../lib/render.js';
 import { createTranscriptScanner, isZaiModel } from './claude.js';
 
 const BASE_URL = 'https://api.z.ai';
@@ -77,7 +74,7 @@ export function getPlanName(subscription) {
   return subscription?.data?.productName || subscription?.productName || '';
 }
 
-// Keep proxy credentials out of snapshots, TUI output, and --json. Only the
+// Keep proxy credentials out of snapshots and --json. Only the
 // scheme and network address are useful diagnostics; paths, query strings,
 // and userinfo can all contain secrets.
 export function displayProxy(proxy) {
@@ -272,79 +269,7 @@ async function fetchAccountUsage(account, accountIndex) {
   };
 }
 
-export function renderAccountBlock(result, width, mode = 'detail') {
-  const compact = mode === 'compact';
-  const status = result.ok
-    ? `{${COLOR.success}-fg}{bold}OK{/bold}{/${COLOR.success}-fg}`
-    : `{${COLOR.danger}-fg}{bold}${escapeBlessed(String(result.status))}{/bold}{/${COLOR.danger}-fg}`;
-  // The masked key is identifying, so it only shows in the detail view.
-  const meta = compact
-    ? [result.plan].filter(Boolean).join(' · ')
-    : `${result.account.key} | ${result.ms}ms | via ${result.account.proxy}`;
-  const accountText = result.account.name
-    ? `{${COLOR.accentSoft}-fg}{bold}${escapeBlessed(result.account.name)}{/bold}{/${COLOR.accentSoft}-fg}  `
-    : '  ';
-  const metaText = meta ? `  {${COLOR.muted}-fg}${escapeBlessed(meta)}{/${COLOR.muted}-fg}` : '';
-  const lines = [
-    `${accountText}${status}${metaText}`,
-  ];
-
-  if (result.partial) {
-    lines.push(`  {${COLOR.warning}-fg}partial data: ${escapeBlessed(result.partial)}{/${COLOR.warning}-fg}`);
-  }
-
-  if (!result.ok) {
-    lines.push(`  {${COLOR.danger}-fg}${escapeBlessed(result.error || 'Unknown error')}{/${COLOR.danger}-fg}`);
-
-    if (result.url && !compact) {
-      lines.push(`  {${COLOR.secondary}-fg}url{/${COLOR.secondary}-fg} ${escapeBlessed(result.url)}`);
-    }
-
-    if (result.body && !compact) {
-      lines.push(`  {${COLOR.secondary}-fg}body{/${COLOR.secondary}-fg} ${escapeBlessed(result.body)}`);
-    }
-
-    return lines.join('\n');
-  }
-
-  if (result.plan && !compact) {
-    lines.push(`  {${COLOR.secondary}-fg}plan{/${COLOR.secondary}-fg} {${COLOR.accentSoft}-fg}${escapeBlessed(result.plan)}{/${COLOR.accentSoft}-fg}`);
-  }
-
-  const itemFormatter = compact ? formatUsageItemCompact : formatUsageItem;
-  lines.push(...result.items.map((item) => itemFormatter(item, width)));
-
-  if (result.quotaSample) {
-    lines.push(`  {${COLOR.secondary}-fg}quota sample{/${COLOR.secondary}-fg} ${escapeBlessed(result.quotaSample)}`);
-  }
-
-  return lines.join('\n');
-}
-
-export const ZAI_LOCAL_OPTS = {
-  source: 'Claude Code transcripts',
-  shorten: (model) => model.replace(/^(?:zai|z-ai|zhipuai)\/+/, ''),
-  tone: () => 'cyan',
-  note: 'in includes cache writes; cached in = cache reads; $ estimates z.ai API cost, not subscription billing',
-};
-
-export function renderZaiSnapshot(snapshot, width, mode = 'detail') {
-  if (snapshot.fatal) {
-    return `  {${COLOR.danger}-fg}${escapeBlessed(snapshot.fatal)}{/${COLOR.danger}-fg}`;
-  }
-
-  const compact = mode === 'compact';
-  const sections = snapshot.results.map((result) => renderAccountBlock(result, width, mode));
-
-  if (!compact && snapshot.local?.ok && snapshot.local.models.length > 0) {
-    sections.push(renderLocalUsage(snapshot.local, { ...ZAI_LOCAL_OPTS, width }));
-  }
-
-  return sections.join(compact ? '\n' : '\n\n');
-}
-
-// Appends keys auto-discovered from Claude Code settings profiles whose base
-// URL points at the given host, skipping ones already configured in .env.
+// Append keys discovered from Claude Code settings profiles that target this host.
 export async function appendDiscoveredAccounts(accounts, env, hostFragment, disableVar) {
   if (/^(0|false|no)$/i.test(env[disableVar] || '')) {
     return accounts;
@@ -389,10 +314,6 @@ export async function createZaiProvider(env) {
         Promise.all(accounts.map((account, index) => fetchAccountUsage(account, index + 1))),
       ]);
       return { results, local };
-    },
-
-    render(snapshot, width, mode = 'detail') {
-      return renderZaiSnapshot(snapshot, width, mode);
     },
 
     headerStatus: multiAccountHeaderStatus,

@@ -59,7 +59,6 @@ test('Copilot fetches the internal user endpoint with the discovered token', asy
   assert.equal(calls[0].options.headers.Authorization, 'token gho_token');
   assert.deepEqual(provider.headerStatus(snapshot), { ok: true, text: 'OK' });
   assert.deepEqual(provider.alertItems(snapshot).map((item) => item.key), ['copilot:premium']);
-  assert.match(provider.render(snapshot, 100, 'compact'), /Premium/);
 });
 
 test('Copilot reports rejected tokens with their source and survives transport errors', async (t) => {
@@ -290,8 +289,6 @@ test('Gemini resolves tier, project, and quota buckets from the Cloud Code endpo
   assert.ok(!calls.some((call) => call.url.includes('cloudresourcemanager')), 'the assist project skips project discovery');
   const quotaCall = calls.find((call) => call.url.includes(':retrieveUserQuota'));
   assert.deepEqual(JSON.parse(quotaCall.options.body), { project: 'proj-1' });
-  assert.match(provider.render(snapshot, 100, 'detail'), /dev@example\.com/);
-  assert.doesNotMatch(provider.render(snapshot, 100, 'compact'), /dev@example\.com/);
 });
 
 test('Gemini refreshes an expiring token and writes it back before requesting quota', async (t) => {

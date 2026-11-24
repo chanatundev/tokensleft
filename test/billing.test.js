@@ -169,7 +169,6 @@ test('OpenCode uses server quota for every tier and avoids fabricated dollar lim
   assert.equal(calls.length, 2);
   assert.equal(snapshot.items[0].percent, 90);
   assert.equal(snapshot.items.at(-1).value, 'enabled');
-  assert.doesNotMatch(provider.render(snapshot, 100, 'detail'), /\$12|\$30|\$60/);
   assert.deepEqual(buildOpencodeQuotaItems({ usage: { rolling: { percent: null }, weekly: { percent: 120 }, monthly: { percent: '5' } } }), []);
 });
 

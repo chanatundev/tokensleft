@@ -3,7 +3,6 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { stripBlessedTags } from '../lib/format.js';
 import { loadNodeSqlite } from '../lib/runtime.js';
 import { createOpencodeProvider, hasOpencodeGoAuth } from '../providers/opencode.js';
 import { createZaiProvider, displayProxy } from '../providers/zai.js';
@@ -80,7 +79,6 @@ test('z.ai treats quota as required and removes proxy userinfo from snapshots', 
     assert.equal(result.account.proxy, 'http://proxy.example:8080');
     assert.equal(result.account.name, '');
     assert.doesNotMatch(JSON.stringify(snapshot), /user|password/);
-    assert.doesNotMatch(provider.render(snapshot, 100, 'detail'), /user|password|key_1|Account 1/);
   });
 });
 
@@ -93,7 +91,6 @@ test('z.ai reports API failures even when HTTP succeeds', async () => {
     assert.equal(result.status, 500);
     assert.equal(result.error, 'No Coding Plan: [redacted]');
     assert.deepEqual(result.items, []);
-    assert.match(provider.render(snapshot, 100), /No Coding Plan/);
   });
 });
 
@@ -167,12 +164,6 @@ test('z.ai shows GLM usage from Claude Code transcripts with only a z.ai key', a
     assert.equal(snapshot.local.models[0].today.messages, 1);
     assert.equal(snapshot.local.models[0].today.hasCost, true);
 
-    const detail = stripBlessedTags(provider.render(snapshot, 100, 'detail'));
-    const compact = stripBlessedTags(provider.render(snapshot, 100, 'compact'));
-    assert.match(detail, /Local usage by model/);
-    assert.match(detail, /glm-4\.7/);
-    assert.doesNotMatch(detail, /claude-sonnet/);
-    assert.doesNotMatch(compact, /Local usage by model|glm-4\.7/);
   });
 });
 

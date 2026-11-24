@@ -3,10 +3,8 @@ import { copyFile, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { ANTIGRAVITY_LOCAL_OPTS, antigravityUsageModel, createAntigravityUsageScanner, parseAntigravityGeneration } from '../lib/antigravity-local.js';
+import { antigravityUsageModel, createAntigravityUsageScanner, parseAntigravityGeneration } from '../lib/antigravity-local.js';
 import { calculateModelCost } from '../lib/model-pricing.js';
-import { stripBlessedTags } from '../lib/format.js';
-import { renderSingleAccount } from '../lib/provider-render.js';
 import { loadNodeSqlite } from '../lib/runtime.js';
 
 const sqlite = await loadNodeSqlite();
@@ -79,7 +77,7 @@ function insert(db, index, time, options = {}) {
   db.prepare('INSERT OR REPLACE INTO gen_metadata VALUES (?, ?)').run(index, generation({ id: `response-${index}`, steps: [index], ...options }));
 }
 
-sqliteTest('agy detail table buckets real database generations and dedupes copied conversations', async (t) => {
+sqliteTest('agy scanner buckets database generations and dedupes copied conversations', async (t) => {
   const home = await tempHome(t);
   const path = join(home, 'conversations', 'session.db');
   const db = database(path);
@@ -104,11 +102,6 @@ sqliteTest('agy detail table buckets real database generations and dedupes copie
   assert.equal(model.all.cacheWrite, 200);
   assert.equal(model.all.output, 280);
   assert.equal(model.all.hasCost, true);
-  const snapshot = { ok: true, plan: 'Google AI Ultra', ms: 1, items: [], local };
-  const detail = stripBlessedTags(renderSingleAccount(snapshot, 120, 'detail', 'antigravity', ANTIGRAVITY_LOCAL_OPTS));
-  assert.match(detail, /Local usage by model[\s\S]*gemini-3.8-flash[\s\S]*today[\s\S]*7d[\s\S]*30d[\s\S]*all/);
-  assert.match(detail, /all local accounts/);
-  assert.doesNotMatch(renderSingleAccount(snapshot, 120, 'compact', 'antigravity', ANTIGRAVITY_LOCAL_OPTS), /Local usage by model/);
   await rm(path);
   await rm(join(home, 'conversations', 'copy.db'));
   assert.equal((await scanner.scan(NOW)).models.length, 0);

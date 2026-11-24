@@ -11,8 +11,6 @@ import { isReloginRequired, oauthErrorCode, postTokenRefresh, ReloginRequiredErr
 import { createSingleAccountProvider, errorSnapshot } from '../lib/provider.js';
 import { writeFileAtomic } from '../lib/fsx.js';
 
-export { renderSingleAccount } from '../lib/provider-render.js';
-
 // Codex CLI's public OAuth client (an "installed application" client — the
 // same value every Codex install ships with). Used to redeem the refresh
 // token already stored in auth.json.
@@ -421,7 +419,7 @@ export function buildCodexItems(data, headers = {}, { prefix = 'codex', now = Da
   // Early rate-limit resets Codex now grants: a bare count with no known cap,
   // so it's an info line rather than a bar. Redemption deadlines come from the
   // sibling reset-credits endpoint — compact shows the soonest, detail lists
-  // each credit's expiry (`note`/`details` are info-only render hints).
+  // each credit's expiry (`note`/`details` are informational metadata).
   const resets = Number(data?.rate_limit_reset_credits?.available_count);
 
   if (Number.isFinite(resets)) {
@@ -643,8 +641,6 @@ export function createRolloutScanner(codexHome) {
   });
 }
 
-export const CODEX_LOCAL_OPTS = { source: 'sessions' };
-
 export async function createCodexProvider(env, {
   resetForecastFetcher = createCodexResetForecastFetcher(),
 } = {}) {
@@ -661,7 +657,6 @@ export async function createCodexProvider(env, {
     id: 'codex',
     title: 'Codex',
     refreshMs: readRefreshMs(env, ['CODEX_REFRESH_SECONDS', 'CODEX_REFRESH_SEC'], DEFAULT_REFRESH_MS),
-    localOpts: CODEX_LOCAL_OPTS,
 
     async fetch() {
       const [local, snapshot] = await Promise.all([

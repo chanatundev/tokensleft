@@ -95,10 +95,6 @@ test('auto detection prefers agy keyring without an IDE DB and rereads account c
   assert.ok(!snapshot.items.some((item) => ['unknown', 'unavailable'].includes(item.value)));
   assert.match(snapshot.items.find((item) => item.label === 'Credentials').value, /agy CLI/);
   assert.equal(snapshot.items.find((item) => item.label === 'Credentials').detailOnly, true);
-  const compact = provider.render(snapshot, 98, 'compact');
-  assert.match(compact, /Gemini weekly/);
-  assert.match(compact, /Claude\/GPT weekly/);
-  assert.doesNotMatch(compact, /unknown|unavailable|Credentials/);
   active = { ...tokens(), accessToken: 'new-account' };
   await provider.fetch();
   assert.deepEqual(seen, ['Bearer cli-access', 'Bearer cli-access', 'Bearer new-account', 'Bearer new-account']);

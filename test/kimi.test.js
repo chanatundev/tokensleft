@@ -282,7 +282,7 @@ test('parseKimiModelsPayload keeps public model capabilities and context sizes',
   assert.deepEqual(parseKimiModelsPayload(null), []);
 });
 
-test('buildKimiItems renders plan limits and keeps Extra Usage informational', () => {
+test('buildKimiItems maps plan limits and keeps Extra Usage informational', () => {
   const items = buildKimiItems({
     usage: { name: 'Weekly limit', used: 40, limit: 1000, resetAt: '2026-07-24T00:00:00Z' },
     limits: [
@@ -381,11 +381,7 @@ test('Kimi provider reads a valid CLI token and maps /usages into reset-aware al
   assert.deepEqual(Object.keys(calls[0].options.headers).sort(), ['Accept', 'Authorization']);
   assert.deepEqual(provider.alertItems(snapshot).map((item) => item.label), ['Weekly limit', '5h limit']);
   assert.equal(provider.headerStatus(snapshot).text, '1/1 OK');
-  assert.match(provider.render(snapshot, 96, 'compact'), /Weekly limit/);
-  assert.doesNotMatch(provider.render(snapshot, 96, 'compact'), /Local usage by model/);
   assert.equal(snapshot.local.ok, true);
-  assert.match(provider.render(snapshot, 96, 'detail'), /Local usage by model/);
-  assert.match(provider.render(snapshot, 96, 'detail'), /k3/);
 });
 
 test('Kimi provider refreshes an expired OAuth token and atomically persists the rotation', async (t) => {
@@ -533,7 +529,6 @@ test('Kimi provider accepts a manual Kimi Code membership key', async (t) => {
 
   assert.equal(snapshot.results[0].ok, true);
   assert.equal(snapshot.results[0].items[0].percent, 20);
-  assert.doesNotMatch(provider.render(snapshot, 120, 'compact'), /key_1|Account 1/);
   assert.deepEqual(provider.alertItems(snapshot).map((item) => item.label), ['Weekly limit']);
 });
 
@@ -546,7 +541,7 @@ test('Kimi provider shows membership metadata and caches the model catalog', asy
     assert.equal(options.headers.Authorization, 'Bearer metadata-key');
     return new Response(JSON.stringify({
       usage: { used: 12, limit: 100 },
-      user: { userId: 'never-render-this', membership: { level: 'LEVEL_INTERMEDIATE' } },
+      user: { userId: 'never-expose-this', membership: { level: 'LEVEL_INTERMEDIATE' } },
       subType: 'TYPE_PURCHASE',
       totalQuota: { limit: 100, remaining: 88 },
       parallel: { limit: 20, details: ['opaque-request-id'] },
@@ -585,13 +580,6 @@ test('Kimi provider shows membership metadata and caches the model catalog', asy
     'Models',
   ]);
   assert.equal(result.items[0].value, '12%');
-  assert.doesNotMatch(provider.render(first, 120, 'detail'), /\(12\/100\)/);
-  assert.match(provider.render(first, 120, 'detail'), /Allegretto[\s\S]*API Key/);
-  assert.match(provider.render(first, 120, 'detail'), /Shared quota[\s\S]*88\/100 left/);
-  const compact = provider.render(first, 120, 'compact');
-  assert.match(compact, /Allegretto/);
-  assert.doesNotMatch(compact, /Shared quota|Parallel|Models/);
-  assert.match(compact, /Weekly limit/);
   assert.deepEqual(second.results[0].items.at(-1).details, result.items.at(-1).details);
 });
 
@@ -609,7 +597,7 @@ test('Kimi model metadata is optional when the catalog request fails', async (t)
   assert.deepEqual(snapshot.results[0].items.map((item) => item.label), ['Weekly limit']);
 });
 
-test('Kimi provider fetches and renders multiple named membership keys independently', async (t) => {
+test('Kimi provider fetches multiple named membership keys independently', async (t) => {
   const calls = [];
   mockFetch(t, async (_url, options) => {
     const token = options.headers.Authorization.replace(/^Bearer /, '');
@@ -635,5 +623,4 @@ test('Kimi provider fetches and renders multiple named membership keys independe
     'work Weekly limit',
     'personal Weekly limit',
   ]);
-  assert.match(provider.render(snapshot, 96, 'compact'), /work[\s\S]*personal/);
 });

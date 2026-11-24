@@ -7,14 +7,11 @@ import { claudeConfigDir } from '../lib/claude-settings.js';
 import { writeFileAtomic } from '../lib/fsx.js';
 import { readOnlyMode, readRefreshMs } from '../lib/env.js';
 import { buildUsageItem, toDate } from '../lib/forecast.js';
-import { escapeBlessed, formatCountdown, formatDateTime, truncateTagged } from '../lib/format.js';
 import { parseJson, parseRetryAfterDate } from '../lib/http.js';
-import { createLocalUsageScanner, jsonlRefresher, renderLocalUsage } from '../lib/local-usage.js';
+import { createLocalUsageScanner, jsonlRefresher } from '../lib/local-usage.js';
 import { calculateModelCost } from '../lib/model-pricing.js';
 import { isReloginRequired, oauthErrorCode, postTokenRefresh, ReloginRequiredError } from '../lib/oauth.js';
-import { COLOR } from '../lib/palette.js';
 import { errorSnapshot, multiAccountHeaderStatus, usageAlertItems } from '../lib/provider.js';
-import { formatUsageItem, formatUsageItemCompact } from '../lib/render.js';
 
 const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
 // Reset inventory is gated on the Claude Code client identity, as well as
@@ -461,8 +458,8 @@ export function tokenNeedsRefresh(expiresAt, now = Date.now()) {
   return Number.isFinite(expiresAt) && now + TOKEN_REFRESH_BUFFER_MS >= expiresAt;
 }
 
-// Preserve grants so remembered snapshots can drop expired credits on each
-// render, without waiting for another network poll. Never expose grant IDs.
+// Preserve grants so remembered snapshots can drop expired credits without
+// waiting for another network poll. Never expose grant IDs.
 export function parseClaudeResetCredits(block) {
   if (block?.eligible !== true || !Array.isArray(block.grants)) {
     return null;
@@ -487,28 +484,6 @@ export function parseClaudeResetCredits(block) {
     });
   }
   return { grants };
-}
-
-function renderClaudeResetCredits(credits, width, compact, now = Date.now()) {
-  if (!credits) {
-    return [truncateTagged(`  {${COLOR.muted}-fg}Saved resets: unavailable{/${COLOR.muted}-fg}`, width)];
-  }
-  const grants = credits.grants.filter((grant) => grant.remaining > 0 && !grant.paused
-    && (!grant.startsAt || new Date(grant.startsAt).getTime() <= now)
-    && (!grant.endsAt || new Date(grant.endsAt).getTime() > now));
-  const count = grants.reduce((total, grant) => total + grant.remaining, 0);
-  const lines = [`  {${COLOR.accentSoft}-fg}Saved resets: ${count} available{/${COLOR.accentSoft}-fg}`];
-  for (const grant of grants) {
-    const label = grant.full ? 'Full reset' : 'Limit reset';
-    const expiry = grant.endsAt
-      ? `expires ${formatCountdown(new Date(grant.endsAt))}`
-      : 'no expiry';
-    lines.push(truncateTagged(`  ${label} ×${grant.remaining} · ${expiry}`, width));
-    if (!compact && grant.endsAt) {
-      lines.push(truncateTagged(`  {${COLOR.muted}-fg}Expires at ${escapeBlessed(formatDateTime(new Date(grant.endsAt)))}{/${COLOR.muted}-fg}`, width));
-    }
-  }
-  return lines;
 }
 
 export function buildClaudeLimitItems(data, { prefix = 'claude', now = Date.now() } = {}) {
@@ -827,89 +802,6 @@ export function createTranscriptScanner(configDir, { includeModel = () => true }
   });
 }
 
-// --- rendering -------------------------------------------------------------------
-
-function renderAccountBlock(result, width, mode = 'detail') {
-  const compact = mode === 'compact';
-  const status = result.ok
-    ? `{${COLOR.success}-fg}{bold}OK{/bold}{/${COLOR.success}-fg}`
-    : `{${COLOR.danger}-fg}{bold}${escapeBlessed(String(result.status))}{/bold}{/${COLOR.danger}-fg}`;
-  const metaParts = compact
-    ? [result.plan, result.spend ? `spend ${result.spend}` : '']
-    : [result.plan, result.source, `${result.ms}ms`];
-  const meta = metaParts.filter(Boolean).join(' · ');
-  const lines = [
-    `{${COLOR.accentSoft}-fg}{bold}${escapeBlessed(result.name)}{/bold}{/${COLOR.accentSoft}-fg}  ${status}  {${COLOR.muted}-fg}${escapeBlessed(meta)}{/${COLOR.muted}-fg}`,
-  ];
-
-  if (!result.ok) {
-    lines.push(`  {${COLOR.danger}-fg}${escapeBlessed(result.error || 'unknown error')}{/${COLOR.danger}-fg}`);
-
-    if (result.body && !compact) {
-      lines.push(`  {${COLOR.muted}-fg}${escapeBlessed(result.body)}{/${COLOR.muted}-fg}`);
-    }
-
-    if (result.retryAfterAt) {
-      const exactTime = compact ? '' : ` · at ${formatDateTime(result.retryAfterAt)}`;
-      lines.push(`  {${COLOR.warning}-fg}retry ${escapeBlessed(formatCountdown(result.retryAfterAt))}${escapeBlessed(exactTime)}{/${COLOR.warning}-fg}`);
-    }
-
-    return lines.join('\n');
-  }
-
-  const itemFormatter = compact ? formatUsageItemCompact : formatUsageItem;
-  lines.push(...result.items.map((item) => itemFormatter(item, width)));
-  lines.push(...renderClaudeResetCredits(result.resetCredits, width, compact));
-
-  if (result.spend && !compact) {
-    lines.push(`  {bold}${'Spend'.padEnd(12)}{/bold} ${escapeBlessed(result.spend)}`);
-  }
-
-  // The bars are fine, but something about the credentials needs attention —
-  // typically a refresh that could not be written back.
-  if (result.warning) {
-    lines.push(truncateTagged(`  {${COLOR.warning}-fg}${escapeBlessed(result.warning)}{/${COLOR.warning}-fg}`, width));
-  }
-
-  return lines.join('\n');
-}
-
-const LOCAL_ONLY_NOTE = 'No account credentials — local usage only; run `claude` and /login for quotas.';
-
-export const CLAUDE_LOCAL_OPTS = {
-  source: 'transcripts',
-  shorten: (model) => model.replace(/^claude-/, '').replace(/-\d{8}$/, ''),
-  tone: (model) => /fable|mythos/.test(model) ? 'magenta' : /opus/.test(model) ? 'yellow' : 'white',
-};
-
-// Full provider view: one block per account, plus the local-usage section in
-// the detail view (`d`). Shared with the demo provider (lib/demo.js).
-export function renderClaudeSnapshot(snapshot, width, mode = 'detail') {
-  if (snapshot.fatal) {
-    return `  {${COLOR.danger}-fg}${escapeBlessed(snapshot.fatal)}{/${COLOR.danger}-fg}`;
-  }
-
-  const compact = mode === 'compact';
-  const sections = snapshot.results
-    .filter((result) => result.status !== 'DUP')
-    .map((result) => renderAccountBlock(result, width, mode));
-
-  // Local-usage-only mode: transcripts on disk but no usable credentials, so
-  // say why the quota bars are missing instead of rendering an empty panel.
-  if (sections.length === 0) {
-    sections.push(truncateTagged(
-      `  {${COLOR.warning}-fg}${escapeBlessed(LOCAL_ONLY_NOTE)}{/${COLOR.warning}-fg}`,
-      width,
-    ));
-  }
-
-  if (!compact) {
-    sections.push(renderLocalUsage(snapshot.local, { ...CLAUDE_LOCAL_OPTS, width }));
-  }
-
-  return sections.join(compact ? '\n' : '\n\n');
-}
-
 // --- provider ---------------------------------------------------------------------
 
 export async function createClaudeProvider(env, options = {}) {
@@ -949,10 +841,6 @@ export async function createClaudeProvider(env, options = {}) {
       }
 
       return { results, local, ms: Date.now() - startedAt };
-    },
-
-    render(snapshot, width, mode = 'detail') {
-      return renderClaudeSnapshot(snapshot, width, mode);
     },
 
     headerStatus(snapshot) {

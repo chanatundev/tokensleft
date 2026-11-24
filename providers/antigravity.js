@@ -10,7 +10,7 @@ import { isReloginRequired, oauthErrorCode, postTokenRefresh, ReloginRequiredErr
 import { createSingleAccountProvider, errorSnapshot } from '../lib/provider.js';
 import { googleAccountStatus, googleCreditItems, readGoogleOverageSettings } from '../lib/google-billing.js';
 import { readAntigravityCliCredential } from '../lib/antigravity-auth.js';
-import { ANTIGRAVITY_LOCAL_OPTS, createAntigravityUsageScanner } from '../lib/antigravity-local.js';
+import { createAntigravityUsageScanner } from '../lib/antigravity-local.js';
 
 const AGY_CLI_BASE = 'https://daily-cloudcode-pa.googleapis.com/v1internal:';
 const IDE_BASES = [
@@ -439,7 +439,6 @@ export async function createAntigravityProvider(env, { readCliCredential = readA
     id: 'antigravity',
     title: useCli && !isDesktopHome ? 'Antigravity CLI' : 'Antigravity',
     refreshMs: readRefreshMs(env, ['ANTIGRAVITY_REFRESH_SECONDS', 'ANTIGRAVITY_REFRESH_SEC'], DEFAULT_REFRESH_MS),
-    localOpts: ANTIGRAVITY_LOCAL_OPTS,
 
     async fetch() {
       const startedAt = Date.now();

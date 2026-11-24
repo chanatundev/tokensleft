@@ -17,13 +17,10 @@ import {
   parseClaudeResetCredits,
   parseTranscriptChunk,
   readClaudeAccounts,
-  renderClaudeSnapshot,
   resolveRetryAfterAt,
 } from '../providers/claude.js';
-import { stripBlessedTags } from '../lib/format.js';
-import { formatPlainProviderBlock } from '../lib/cli.js';
 
-test('saved Claude resets show remaining credits and expiry, independently of local history', () => {
+test('saved Claude reset parser preserves remaining credits, timing, and eligibility state', () => {
   const now = Date.parse('2026-10-22T08:00:00Z');
   const realNow = Date.now;
   Date.now = () => now;
@@ -41,22 +38,14 @@ test('saved Claude resets show remaining credits and expiry, independently of lo
       { ...grant, starts_at: '2026-10-23T00:00:00Z' },
     ] });
     assert.doesNotMatch(JSON.stringify(credits), /secret-grant/);
-    const snapshot = {
-      results: [{ name: 'system', ok: true, ms: 1, items: [], resetCredits: credits }],
-      local: { ok: true, models: [] },
-    };
-    for (const mode of ['compact', 'detail']) {
-      const output = stripBlessedTags(renderClaudeSnapshot(snapshot, 74, mode));
-      assert.match(output, /Saved resets: 2 available/);
-      assert.match(output, /Full reset ×2 · expires in 8h/);
-      assert.equal(output.includes('Expires at'), mode === 'detail');
-      assert.doesNotMatch(output, /local history/);
-    }
-    assert.match(formatPlainProviderBlock({ render: renderClaudeSnapshot }, snapshot, 74), /Full reset ×2/);
-    Date.now = () => Date.parse('2026-10-24T00:00:00Z');
-    const expired = stripBlessedTags(renderClaudeSnapshot(JSON.parse(JSON.stringify(snapshot)), 74, 'compact'));
-    assert.match(expired, /Saved resets: 0 available/);
-    assert.doesNotMatch(expired, /Full reset/);
+    assert.equal(credits.grants.length, 5);
+    assert.equal(credits.grants[0].remaining, 2);
+    assert.equal(credits.grants[0].full, true);
+    assert.equal(credits.grants[0].endsAt.toISOString(), '2026-10-22T16:00:00.000Z');
+    assert.equal(credits.grants[1].remaining, 0);
+    assert.equal(credits.grants[2].paused, true);
+    assert.equal(credits.grants[3].endsAt.toISOString(), '2026-10-22T07:00:00.000Z');
+    assert.equal(credits.grants[4].startsAt.toISOString(), '2026-10-23T00:00:00.000Z');
   } finally {
     Date.now = realNow;
   }
@@ -71,9 +60,6 @@ test('missing, ineligible and malformed reset inventories remain unknown rather 
     assert.equal(parseClaudeResetCredits(block), null);
   }
   assert.deepEqual(parseClaudeResetCredits({ eligible: true, grants: [] }), { grants: [] });
-  const output = stripBlessedTags(renderClaudeSnapshot({ results: [{ name: 'system', ok: true, items: [] }] }, 74, 'compact'));
-  assert.match(output, /Saved resets: unavailable/);
-  assert.doesNotMatch(output, /0 available/);
 });
 
 test('Claude fetch requests saved reset inventory with the compatible client identity', async (t) => {
@@ -91,7 +77,6 @@ test('Claude fetch requests saved reset inventory with the compatible client ide
   const snapshot = await provider.fetch();
   assert.equal(snapshot.results[0].ok, true);
   assert.equal(snapshot.results[0].resetCredits.grants[0].remaining, 1);
-  assert.match(stripBlessedTags(provider.render(snapshot, 74, 'compact')), /Full reset ×1/);
 });
 
 test('unsupported optional reset query falls back to ordinary usage; 429 is never retried', async (t) => {
@@ -163,11 +148,6 @@ test('weekly-only Ultra limits remain authoritative over legacy session fields',
   assert.equal(items[0].percent, 17);
   assert.equal(items[1].percent, 33);
   assert.equal(items[0].resetAt.getTime(), Date.parse(SAMPLE_USAGE.seven_day.resets_at));
-  const output = stripBlessedTags(renderClaudeSnapshot({ results: [
-    { name: 'system', plan: 'Ultra', ok: true, items },
-  ] }, 74, 'compact'));
-  assert.match(output, /Ultra/);
-  assert.doesNotMatch(output, /Session/);
   // Unverified Ultra accounts can still have a temporary session limit.
   assert.equal(buildClaudeLimitItems(SAMPLE_USAGE)[0].label, 'Session');
 });
@@ -186,37 +166,6 @@ test('429 retry time honors the server delay with a ten-minute minimum backoff',
   assert.equal(resolveRetryAfterAt('0', { now }).getTime(), now + 10 * 60 * 1000);
   assert.equal(resolveRetryAfterAt(null, { now }).getTime(), now + 10 * 60 * 1000);
   assert.equal(resolveRetryAfterAt('3600', { now }).getTime(), now + 60 * 60 * 1000);
-});
-
-test('429 UI shows a countdown instead of a misleading time-of-day', () => {
-  const now = Date.parse('2026-07-14T06:00:00Z');
-  const realNow = Date.now;
-  Date.now = () => now;
-
-  try {
-    const retryAfterAt = new Date(now + 24 * 60 * 60 * 1000);
-    const result = {
-      name: 'personal',
-      ok: false,
-      status: 429,
-      error: 'HTTP 429',
-      plan: 'max',
-      ms: 10,
-      retryAfterAt,
-      items: [],
-    };
-    const compact = stripBlessedTags(renderClaudeSnapshot({ results: [result] }, 100, 'compact'));
-    const detail = stripBlessedTags(renderClaudeSnapshot({
-      results: [result],
-      local: { ok: true, models: [] },
-    }, 100, 'detail'));
-
-    assert.match(compact, /retry in 1d/);
-    assert.ok(!compact.includes('retry after'));
-    assert.match(detail, /retry in 1d · at /);
-  } finally {
-    Date.now = realNow;
-  }
 });
 
 function transcriptLine({ id, model = 'claude-fable-5', t, output = 100 }) {
@@ -563,10 +512,6 @@ test('a Keychain write failure keeps the usage bars and surfaces a warning', asy
   assert.equal(snapshot.results[0].ok, true);
   assert.deepEqual(bearers, ['Bearer rotated-access']);
   assert.match(snapshot.results[0].warning, /could not save the refreshed credentials: User interaction is not allowed\./);
-  assert.match(
-    stripBlessedTags(renderClaudeSnapshot(snapshot, 100, 'detail')),
-    /could not save the refreshed credentials/,
-  );
 });
 
 test('a token rotated underneath us is not clobbered', async (t) => {
@@ -767,11 +712,6 @@ test('local transcript usage keeps the provider alive without credentials', asyn
   assert.deepEqual(provider.headerStatus(snapshot), { ok: true, text: 'LOCAL' });
   assert.deepEqual(provider.alertItems(snapshot), []);
 
-  const detail = stripBlessedTags(provider.render(snapshot, 100, 'detail'));
-  const compact = stripBlessedTags(provider.render(snapshot, 100, 'compact'));
-  assert.match(detail, /Local usage by model/);
-  assert.match(detail, /No account credentials/);
-  assert.match(compact, /No account credentials/);
 });
 
 test('no credentials and no local usage leaves the provider undetected', async (t) => {

@@ -5,14 +5,12 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { readOnlyMode, readRefreshMs, splitCsv } from '../lib/env.js';
 import { buildUsageItem } from '../lib/forecast.js';
 import { writeFileAtomic } from '../lib/fsx.js';
-import { escapeBlessed, formatNumber } from '../lib/format.js';
+import { formatNumber } from '../lib/format.js';
 import { parseJson } from '../lib/http.js';
-import { createLocalUsageScanner, jsonlRefresher, renderLocalUsage } from '../lib/local-usage.js';
+import { createLocalUsageScanner, jsonlRefresher } from '../lib/local-usage.js';
 import { calculateModelCost } from '../lib/model-pricing.js';
 import { postTokenRefresh } from '../lib/oauth.js';
-import { COLOR } from '../lib/palette.js';
 import { multiAccountHeaderStatus, usageAlertItems } from '../lib/provider.js';
-import { formatUsageItem, formatUsageItemCompact } from '../lib/render.js';
 
 export const DEFAULT_KIMI_CODE_BASE_URL = 'https://api.kimi.com/coding/v1';
 export const DEFAULT_KIMI_OAUTH_HOST = 'https://auth.kimi.com';
@@ -1185,61 +1183,6 @@ export function createKimiSessionScanner(home) {
   });
 }
 
-export const KIMI_LOCAL_OPTS = {
-  source: 'sessions',
-  shorten: (model) => model.replace(/^kimi-code\//, ''),
-  note: 'in includes cache writes; cached in = cache reads; $ estimates API cost, not subscription billing',
-};
-
-function renderKimiAccountBlock(result, width, mode = 'detail') {
-  const compact = mode === 'compact';
-  const status = result.ok
-    ? `{${COLOR.success}-fg}{bold}OK{/bold}{/${COLOR.success}-fg}`
-    : `{${COLOR.danger}-fg}{bold}${escapeBlessed(String(result.status))}{/bold}{/${COLOR.danger}-fg}`;
-  const fallbackAuth = result.source === 'CLI login' ? result.source : 'API Key';
-  const metaParts = compact
-    ? [result.plan]
-    : [result.plan, result.auth || fallbackAuth, `${result.ms}ms`];
-  const meta = metaParts.filter(Boolean).join(' | ');
-  const metaText = meta ? `  {${COLOR.muted}-fg}${escapeBlessed(meta)}{/${COLOR.muted}-fg}` : '';
-  const accountText = result.name
-    ? `{${COLOR.accentSoft}-fg}{bold}${escapeBlessed(result.name)}{/bold}{/${COLOR.accentSoft}-fg}  `
-    : '  ';
-  const lines = [
-    `${accountText}${status}${metaText}`,
-  ];
-
-  if (!result.ok) {
-    lines.push(`  {${COLOR.danger}-fg}${escapeBlessed(result.error || 'unknown error')}{/${COLOR.danger}-fg}`);
-
-    if (result.body && !compact) {
-      lines.push(`  {${COLOR.muted}-fg}${escapeBlessed(result.body)}{/${COLOR.muted}-fg}`);
-    }
-
-    return lines.join('\n');
-  }
-
-  const itemFormatter = compact ? formatUsageItemCompact : formatUsageItem;
-  const items = compact ? result.items.filter((item) => !item.detailOnly) : result.items;
-  lines.push(...items.map((item) => itemFormatter(item, width)));
-  return lines.join('\n');
-}
-
-export function renderKimiSnapshot(snapshot, width, mode = 'detail') {
-  if (snapshot.fatal) {
-    return `  {${COLOR.danger}-fg}${escapeBlessed(snapshot.fatal)}{/${COLOR.danger}-fg}`;
-  }
-
-  const compact = mode === 'compact';
-  const sections = snapshot.results.map((result) => renderKimiAccountBlock(result, width, mode));
-
-  if (!compact && snapshot.local) {
-    sections.push(renderLocalUsage(snapshot.local, { ...KIMI_LOCAL_OPTS, width }));
-  }
-
-  return sections.join(compact ? '\n' : '\n\n');
-}
-
 export async function createKimiProvider(env) {
   const detected = await readKimiAccounts(env);
 
@@ -1273,10 +1216,6 @@ export async function createKimiProvider(env) {
         ))),
       ]);
       return { results, local };
-    },
-
-    render(snapshot, width, mode = 'detail') {
-      return renderKimiSnapshot(snapshot, width, mode);
     },
 
     headerStatus: multiAccountHeaderStatus,

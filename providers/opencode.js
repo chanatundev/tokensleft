@@ -149,11 +149,6 @@ export async function loadLocalModels(dbPath, now) {
   }
 }
 
-export const OPENCODE_LOCAL_OPTS = {
-  source: 'opencode.db',
-  note: '$ = cost recorded by OpenCode per message',
-};
-
 export function buildOpencodeItems(rows, { prefix = 'opencode', now = Date.now() } = {}) {
   const anchorMs = rows.reduce((min, row) => (min === null || row.createdMs < min ? row.createdMs : min), null);
   const weekStart = startOfUtcWeek(now);
@@ -236,7 +231,6 @@ export async function createOpencodeProvider(env) {
     id: 'opencode',
     title: 'OpenCode',
     refreshMs: readRefreshMs(env, ['OPENCODE_REFRESH_SECONDS', 'OPENCODE_REFRESH_SEC'], DEFAULT_REFRESH_MS),
-    localOpts: OPENCODE_LOCAL_OPTS,
 
     async fetch() {
       const startedAt = Date.now();

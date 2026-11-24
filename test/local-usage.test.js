@@ -6,16 +6,11 @@ import { after, test } from 'node:test';
 import {
   aggregateUsageEvents,
   createLocalUsageScanner,
-  formatModelTable,
-  renderLocalUsage,
 } from '../lib/local-usage.js';
-import { renderSingleAccount } from '../lib/provider-render.js';
 import { loadNodeSqlite } from '../lib/runtime.js';
-import { renderClaudeSnapshot } from '../providers/claude.js';
-import { CODEX_LOCAL_OPTS, createRolloutScanner, parseRolloutChunk } from '../providers/codex.js';
+import { createRolloutScanner, parseRolloutChunk } from '../providers/codex.js';
 import { createChatScanner, parseChatJsonlChunk, parseChatMessages } from '../providers/gemini.js';
 import { loadLocalModels } from '../providers/opencode.js';
-import { cellWidth, stripBlessedTags } from '../lib/format.js';
 
 const nodeSqlite = await loadNodeSqlite();
 const sqliteTest = (name, run) => test(name, {
@@ -49,44 +44,6 @@ test('aggregateUsageEvents buckets today/7d/30d/all per model and dedupes by id'
   assert.equal(models[0].all.cost, 99.5);
 });
 
-function windowsOf(usage) {
-  return { today: usage, week: usage, month: usage, all: usage };
-}
-
-test('formatModelTable shows ? for models without pricing', () => {
-  const usage = { input: 5, output: 5, cacheRead: 0, cacheWrite: 0, messages: 3, cost: 0, hasCost: false };
-  const table = stripBlessedTags(formatModelTable([{ model: 'mystery-model', ...windowsOf(usage) }]));
-  assert.match(table, /mystery-model/);
-  assert.match(table, /today.*\?/);
-  assert.match(table, /\$0\.00\+\?/);
-  assert.match(table, /partial total/);
-});
-
-test('formatModelTable adapts windows and model width to the available cells', () => {
-  const usage = { input: 5000, output: 7000, cacheRead: 3000, cacheWrite: 2000, messages: 1, cost: 0.1, hasCost: true };
-  const model = 'provider/very-long-model-name-version-preview';
-  const narrow = stripBlessedTags(formatModelTable([{ model, ...windowsOf(usage) }], { width: 64 }));
-  const wide = stripBlessedTags(formatModelTable([{ model, ...windowsOf(usage) }], { width: 120 }));
-
-  assert.ok(narrow.split('\n').every((line) => cellWidth(line) <= 64));
-  assert.match(narrow.split('\n')[0], /period\s+in\s+cached in\s+out\s+\$/);
-  assert.doesNotMatch(narrow, /\b7d\b|\b30d\b/);
-  assert.match(narrow, /today\s+7\.0k\s+3\.0k\s+7\.0k\s+\$0\.10/);
-  assert.match(wide, /provider\/very-long-model-name/);
-  assert.match(wide, /\b7d\b/);
-  assert.match(wide, /\b30d\b/);
-  assert.ok(wide.split('\n').every((line) => cellWidth(line) <= 120));
-});
-
-test('mixed known and unknown prices mark row and totals as partial', () => {
-  const known = { input: 1, output: 2, cacheRead: 0, cacheWrite: 0, messages: 1, cost: 1, hasCost: true, hasUnknownCost: false };
-  const mixed = { ...known, cost: 1, hasUnknownCost: true };
-  const table = stripBlessedTags(formatModelTable([{ model: 'mixed-model', ...windowsOf(mixed) }]));
-
-  assert.match(table, /\$1\.00\+\?/);
-  assert.match(table, /\+\? partial total/);
-});
-
 test('scanner keeps last-known-good data when one file refresh fails', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'tokensleft-local-partial-'));
   after(() => rm(dir, { recursive: true, force: true }));
@@ -116,7 +73,6 @@ test('scanner keeps last-known-good data when one file refresh fails', async () 
   assert.equal(second.failedFiles.length, 1);
   assert.deepEqual(second.models.map((entry) => entry.model), ['good']);
   assert.equal(second.models[0].all.output, 7);
-  assert.match(stripBlessedTags(renderLocalUsage(second)), /partial · 1 file could not be refreshed/);
 });
 
 test('scanner leaves unchanged append-only logs alone and re-reads grown ones', async () => {
@@ -145,34 +101,6 @@ test('scanner leaves unchanged append-only logs alone and re-reads grown ones', 
   const grown = await scanner.scan();
   assert.equal(refreshes, before + 1);
   assert.equal(grown.models[0].all.messages, 2);
-});
-
-test('local usage tables render in detail mode only', () => {
-  const usage = { input: 5, output: 5, cacheRead: 0, cacheWrite: 0, messages: 1, cost: 0.1, hasCost: true };
-  const local = { ok: true, files: 1, models: [{ model: 'gpt-5.6-sol', ...windowsOf(usage) }] };
-  const snapshot = { ok: true, ms: 1, plan: 'plus', items: [], local };
-  assert.match(renderSingleAccount(snapshot, 100, 'detail', 'codex', CODEX_LOCAL_OPTS), /Local usage by model/);
-  assert.doesNotMatch(renderSingleAccount(snapshot, 100, 'compact', 'codex', CODEX_LOCAL_OPTS), /Local usage by model/);
-  const compactHeader = stripBlessedTags(renderSingleAccount(snapshot, 100, 'compact', 'codex', CODEX_LOCAL_OPTS));
-  assert.match(compactHeader, /^  OK  plus$/);
-  assert.ok(!compactHeader.includes('codex'), 'the section title already identifies a single-account provider');
-
-  // local data stays useful in detail view even when the quota fetch failed
-  const failed = { ok: false, status: 401, error: 'expired', items: [], local };
-  assert.match(renderSingleAccount(failed, 100, 'detail', 'codex', CODEX_LOCAL_OPTS), /Local usage by model/);
-
-  const claudeSnapshot = { results: [], local };
-  assert.match(renderClaudeSnapshot(claudeSnapshot, 100, 'detail'), /Local usage by model/);
-  assert.doesNotMatch(renderClaudeSnapshot(claudeSnapshot, 100, 'compact'), /Local usage by model/);
-});
-
-test('renderLocalUsage reports scan errors and empty windows', () => {
-  const failed = stripBlessedTags(renderLocalUsage({ ok: false, error: 'no session logs at /x', models: [] }));
-  assert.match(failed, /no session logs at \/x/);
-
-  const empty = stripBlessedTags(renderLocalUsage({ ok: true, files: 2, models: [] }, { source: 'sessions' }));
-  assert.match(empty, /sessions, today \/ 7d \/ 30d \/ all time \| 2 files/);
-  assert.match(empty, /no local usage recorded/);
 });
 
 // --- codex rollout parsing ------------------------------------------------------

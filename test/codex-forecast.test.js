@@ -88,8 +88,8 @@ test('Codex reset forecast failures are omitted instead of breaking quota usage'
   assert.deepEqual(snapshot.items.map((item) => item.label), ['Weekly']);
 });
 
-test('Codex provider renders the unofficial 48-hour reset chance in its section', async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), 'tokensleft-codex-forecast-render-'));
+test('Codex includes the unofficial 48-hour reset chance item', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'tokensleft-codex-forecast-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   await writeFile(join(dir, 'auth.json'), JSON.stringify({
     tokens: { access_token: 'codex-access', account_id: 'account-1' },
@@ -112,6 +112,4 @@ test('Codex provider renders the unofficial 48-hour reset chance in its section'
   const item = buildCodexResetForecastItem({ score: 95 });
 
   assert.deepEqual(snapshot.items.at(-1), item);
-  assert.match(provider.render(snapshot, 100, 'compact'), /Reset chance \(48h\)[\s\S]*95% · unofficial/);
-  assert.match(provider.render(snapshot, 100, 'detail'), /source willcodexquotareset\.com/);
 });

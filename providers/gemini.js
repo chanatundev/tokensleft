@@ -481,11 +481,6 @@ export function createChatScanner(dir) {
   });
 }
 
-export const GEMINI_LOCAL_OPTS = {
-  source: 'sessions',
-  tone: (model) => /pro/.test(model) ? 'magenta' : 'white',
-};
-
 async function fetchGeminiQuota(dir, credsPath, readOnly = false) {
   const startedAt = Date.now();
   const authType = await loadSettingsAuthType(dir);
@@ -577,7 +572,7 @@ async function fetchGeminiQuota(dir, credsPath, readOnly = false) {
       ok: true,
       ms,
       plan: mapTierToPlan(tier, idTokenPayload),
-      email, // shown only in the detail view (see renderSingleAccount)
+      email,
       items,
     };
   } catch (error) {
@@ -604,7 +599,6 @@ export async function createGeminiProvider(env) {
     id: 'gemini',
     title: 'Gemini',
     refreshMs: readRefreshMs(env, ['GEMINI_REFRESH_SECONDS', 'GEMINI_REFRESH_SEC'], DEFAULT_REFRESH_MS),
-    localOpts: GEMINI_LOCAL_OPTS,
 
     async fetch() {
       const [local, snapshot] = await Promise.all([

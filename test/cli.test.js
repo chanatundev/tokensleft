@@ -14,7 +14,7 @@ import {
 
 const EXPECTED_IDS = ['claude', 'codex', 'gemini', 'kimi', 'copilot', 'grok', 'antigravity', 'opencode', 'zai'];
 
-test('PROVIDERS registry lists all nine providers in dashboard order', () => {
+test('PROVIDERS registry lists all nine providers', () => {
   assert.deepEqual(PROVIDERS.map((entry) => entry.id), EXPECTED_IDS);
 
   for (const entry of PROVIDERS) {
