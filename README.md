@@ -2,7 +2,7 @@
 
 Chanatun Kohsuwan's headless, agent-oriented fork of [TokensLeft](https://github.com/tokensleft/tokensleft), originally created by the TokensLeft contributors. The fork uses Apache-2.0; the original MIT license and attribution remain in [LICENSE-MIT](LICENSE-MIT).
 
-TokensLeft checks AI subscription quotas and returns compact JSON for orchestrators. It has no interactive TUI, service, analytics, or telemetry.
+TokensLeft checks AI subscription quotas and returns concise natural-language provider sentences by default, with structured JSON available for orchestrators using `--json`. It has no interactive TUI, service, analytics, or telemetry.
 
 ## Install
 
@@ -36,16 +36,40 @@ To check a subset, pass provider IDs on the command line, for example `tokenslef
 
 ## Agent interface
 
-Every invocation prints one compact JSON document to stdout. By default it checks all detected providers. Pass provider IDs to check only selected services:
+By default, TokensLeft prints concise natural-language sentences for detected providers. Use `--json` when an orchestrator needs structured output. It checks all detected providers unless you pass provider IDs:
 
 ```sh
 tokensleft --read-only
 tokensleft codex claude --read-only
 ```
 
-Each result includes a provider ID, status, plan when available, quota limits with `remainingPercent` and `resetAt`, and concise informational notes. Local token histories and spend estimates are omitted. Provider errors are included in the result so an orchestrator can choose another agent.
+The default output is one concise sentence per provider, including status, plan, remaining quota, reset time, and any error or unavailable explanation. Local token histories and spend estimates are omitted.
+
+### Natural-language output format
+
+Each detected provider gets one line. Optional sections are omitted when the provider does not report that data:
+
+```text
+<Provider>: <status>[ on <plan>][ — <quota label>: <percent>% remaining[, resets at <timestamp>][; <another quota>...]][; <info label>: <info value>...][; <error message>].
+```
+
+Examples:
+
+```text
+Codex: available on plus — Weekly: 46% remaining, resets at 2026-11-27T01:30:05Z.
+Grok: unavailable on SuperGrok — Credits: monthly quota unavailable.
+Claude Code: error — OAuth token expired. Run Claude Code and sign in again.
+```
+
+Statuses are `available`, `unavailable`, `not detected`, `unsupported`, and `error`. Remaining percentages are rounded to whole numbers; missing percentages or reset times are omitted or described as unknown. This prose format is intended to be easy for agents to read, not a strict parsing contract; use `--json` when stable fields are needed.
 
 Statuses are `available`, `unavailable`, `not_detected`, `unsupported`, and `error`. An unavailable quota is distinct from zero remaining. When no selected provider can return a snapshot, the CLI exits with status 2.
+
+Use `--json` to get the structured snapshot described below. Its schema remains stable for orchestrators:
+
+```sh
+tokensleft --read-only --json
+```
 
 ```json
 {"schemaVersion":1,"generatedAt":"2026-11-24T00:00:00Z","providers":[{"id":"codex","status":"available","plan":"plus","limits":[{"id":"codex:weekly","label":"Weekly","remainingPercent":46,"resetAt":"2026-11-27T01:30:05Z"}],"info":[]}]}
@@ -57,7 +81,8 @@ Options:
 - `--demo` prints realistic sample data without credentials or network access.
 - `--help` lists provider IDs and usage.
 - `--version` prints the installed version.
-- `--json` and `--once` remain accepted for compatibility; JSON and one-shot output are already the defaults.
+- `--json` prints structured JSON instead of natural-language sentences.
+- `--once` remains accepted for compatibility; each invocation already returns one snapshot.
 
 Antigravity can also be selected as `agy`.
 

@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { SOURCE_URL } from '../lib/meta.js';
 import {
   normalizeProviderSnapshot,
+  formatNaturalLanguage,
   PROVIDERS,
   parseArgs,
   providerEnvironment,
@@ -51,12 +52,12 @@ test('resolveProviderSupport does not probe SQLite for unrelated providers', asy
 });
 
 test('parseArgs accepts provider positionals, dedupes, and combines with flags', () => {
-  const args = parseArgs(['claude', 'zai', 'claude', '--demo', '--read-only']);
+  const args = parseArgs(['claude', 'zai', 'claude', '--demo', '--read-only', '--json']);
 
   assert.deepEqual(args.providers, ['claude', 'zai']);
   assert.equal(args.demo, true);
   assert.equal(args.readOnly, true);
-  assert.equal(args.json, false);
+  assert.equal(args.json, true);
 });
 
 test('parseArgs rejects unknown providers and unknown options', () => {
@@ -124,6 +125,18 @@ test('normalizes multi-account provider quota items', () => {
   });
 });
 
+test('natural-language output distinguishes unavailable, errors, and unknown percentages', () => {
+  const output = formatNaturalLanguage({ providers: [
+    { id: 'grok', status: 'unavailable', plan: 'SuperGrok', limits: [], info: [{ label: 'Credits', value: 'monthly quota unavailable' }] },
+    { id: 'claude', status: 'error', plan: null, limits: [], info: [], error: { code: 'CRED', message: 'login expired' } },
+    { id: 'codex', status: 'available', plan: null, limits: [{ id: 'a', label: 'Weekly', remainingPercent: null, resetAt: null }], info: [] },
+  ] });
+
+  assert.match(output, /Grok: unavailable on SuperGrok — Credits: monthly quota unavailable\./);
+  assert.match(output, /Claude Code: error — login expired\./);
+  assert.match(output, /Codex: available — Weekly: remaining percentage unknown\./);
+});
+
 test('parseArgs recognizes help', () => {
   assert.equal(parseArgs(['-h']).help, true);
   assert.equal(parseArgs(['--help']).help, true);
@@ -153,6 +166,37 @@ test('--version prints the installed package version without loading providers',
   assert.deepEqual(output, [VERSION]);
 });
 
+test('CLI defaults to concise natural-language provider sentences', async () => {
+  const output = [];
+  const realLog = console.log;
+  console.log = (value) => output.push(String(value));
+
+  try {
+    await runCli(['--demo', 'codex']);
+  } finally {
+    console.log = realLog;
+  }
+
+  assert.equal(output.length, 1);
+  assert.match(output[0], /^Codex: available on plus — Weekly: \d+% remaining/);
+  assert.match(output[0], /remaining/);
+  assert.doesNotMatch(output[0], /^\{/);
+});
+
+test('--json preserves the structured JSON provider schema', async () => {
+  const output = [];
+  const realLog = console.log;
+  console.log = (value) => output.push(String(value));
+
+  try {
+    await runCli(['--demo', 'codex', '--json']);
+  } finally {
+    console.log = realLog;
+  }
+
+  assert.equal(JSON.parse(output[0]).providers[0].id, 'codex');
+});
+
 test('usage lists every provider id', () => {
   const text = usage();
 
@@ -161,7 +205,7 @@ test('usage lists every provider id', () => {
   }
 
   assert.match(text, /--read-only/);
-  assert.match(text, /JSON is the default output/);
+  assert.match(text, /--json\s+print structured JSON instead of natural-language text/);
   assert.match(text, /--version/);
   assert.ok(text.includes(`Source: ${SOURCE_URL}`));
 });

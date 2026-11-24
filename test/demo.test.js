@@ -134,13 +134,13 @@ test('only the first Codex demo reset credit expires within the next hour', asyn
   assert.ok(resets.details.slice(1).every((line) => /^expires \d+d \d+h \(.+\)$/.test(line)));
 });
 
-test('CLI default demo uses the curated live-shaped provider set', async () => {
+test('CLI JSON demo uses the curated live-shaped provider set', async () => {
   const output = [];
   const realLog = console.log;
   console.log = (...args) => output.push(args.join(' '));
 
   try {
-    await runCli(['--demo', '--once']);
+    await runCli(['--demo', '--once', '--json']);
   } finally {
     console.log = realLog;
   }
