@@ -110,6 +110,20 @@ test('normalizes unavailable quota and provider errors without usage details', (
   });
 });
 
+test('normalizes multi-account provider quota items', () => {
+  assert.deepEqual(normalizeProviderSnapshot('claude', {
+    results: [{
+      name: 'system', ok: true, plan: 'Pro',
+      items: [{ kind: 'usage', key: 'claude:system:weekly', label: 'Weekly all', percent: 19, resetAt: '2026-11-27T00:00:00Z' }],
+    }],
+    local: { tokens: 987654321 },
+  }), {
+    id: 'claude', status: 'available', plan: 'Pro',
+    limits: [{ id: 'claude:system:weekly', label: 'Weekly all', remainingPercent: 81, resetAt: '2026-11-27T00:00:00Z' }],
+    info: [],
+  });
+});
+
 test('parseArgs recognizes help', () => {
   assert.equal(parseArgs(['-h']).help, true);
   assert.equal(parseArgs(['--help']).help, true);
