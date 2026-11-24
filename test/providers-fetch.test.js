@@ -152,6 +152,32 @@ test('Grok maps billing and settings responses into a credits bar with the plan 
   assert.deepEqual(provider.alertItems(snapshot).map((item) => item.key), ['grok:credits']);
 });
 
+test('Grok reports an unavailable quota when billing returns a zero monthly limit', async (t) => {
+  const dir = await tempDir(t, 'tokensleft-grok-zero-limit-');
+  mockFetch(t, ({ url }) => (url.endsWith('/billing')
+    ? jsonResponse({
+      config: {
+        used: { val: 0 },
+        monthlyLimit: { val: 0 },
+        onDemandCap: { val: 0 },
+        billingPeriodEnd: '2026-12-01T00:00:00.000Z',
+      },
+    })
+    : jsonResponse({ subscription_tier_display: 'SuperGrok' })));
+  const provider = await createGrokProvider(grokEnv(dir, { GROK_TOKEN: 'grok-token' }));
+  const snapshot = await provider.fetch();
+
+  assert.equal(snapshot.ok, true);
+  assert.equal(snapshot.plan, 'SuperGrok');
+  assert.deepEqual(snapshot.items, [{
+    kind: 'info',
+    key: 'grok:credits',
+    label: 'Credits',
+    value: 'monthly quota unavailable',
+  }]);
+  assert.deepEqual(provider.alertItems(snapshot), []);
+});
+
 test('Grok keeps the usage bar when the optional settings request fails', async (t) => {
   const dir = await tempDir(t, 'tokensleft-grok-settings-');
   mockFetch(t, ({ url }) => {

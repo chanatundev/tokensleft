@@ -1,5 +1,7 @@
 # TokensLeft
 
+This is Chanatun Kohsuwan's fork of [TokensLeft](https://github.com/tokensleft/tokensleft), originally created by the TokensLeft project contributors. The original MIT license is preserved in [LICENSE-MIT](LICENSE-MIT); this fork is licensed under Apache-2.0.
+
 **English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 A fast terminal dashboard for AI subscription quotas, reset times, burn rate, and local model usage.
@@ -65,7 +67,7 @@ Local dollar totals are estimates based on public API prices, not subscription b
 ## Development
 
 ```sh
-git clone https://github.com/tokensleft/tokensleft.git
+git clone https://github.com/chanatundev/tokensleft.git
 cd tokensleft
 npm ci
 npm test
@@ -75,4 +77,4 @@ npm run demo
 
 `npm run pricing:update` regenerates the embedded model price snapshot from LiteLLM and models.dev.
 
-[Security policy](SECURITY.md) · MIT licensed.
+[Security policy](SECURITY.md) · Apache-2.0 licensed. Original MIT license and attribution are preserved in [LICENSE-MIT](LICENSE-MIT).

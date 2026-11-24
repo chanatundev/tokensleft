@@ -1,3 +1,4 @@
+// Fork changes by Chanatun Kohsuwan; upstream TokensLeft attribution is in README.md.
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -57,8 +58,17 @@ export function buildGrokItems(billing, { prefix = 'grok', now = Date.now() } = 
   const limit = Number(config?.monthlyLimit?.val);
   const onDemandCap = Number(config?.onDemandCap?.val);
 
-  if (!Number.isFinite(used) || !Number.isFinite(limit) || limit <= 0) {
+  if (!Number.isFinite(used) || !Number.isFinite(limit) || limit < 0) {
     return [];
+  }
+
+  if (limit === 0) {
+    return [{
+      kind: 'info',
+      key: `${prefix}:credits`,
+      label: 'Credits',
+      value: 'monthly quota unavailable',
+    }];
   }
 
   const details = [];
