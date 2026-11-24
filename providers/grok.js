@@ -54,6 +54,32 @@ export function pickGrokToken(auth, now = Date.now(), envToken = '') {
 
 export function buildGrokItems(billing, { prefix = 'grok', now = Date.now() } = {}) {
   const config = billing?.config;
+
+  if (Number.isFinite(config?.creditUsagePercent)
+    && config.creditUsagePercent >= 0 && config.creditUsagePercent <= 100) {
+    const productUsage = Array.isArray(config.productUsage) ? config.productUsage : [];
+    const details = productUsage
+      .filter((product) => typeof product.product === 'string' && Number.isFinite(product.usagePercent))
+      .map((product) => ({ label: product.product, value: `${Math.round(product.usagePercent)}% used` }));
+    const items = [buildUsageItem({
+      key: `${prefix}:credits`,
+      label: 'Weekly credits',
+      value: `${Math.round(config.creditUsagePercent)}% used`,
+      percent: config.creditUsagePercent,
+      resetAt: toDate(config.billingPeriodEnd || config.currentPeriod?.end),
+      periodMs: 7 * 24 * 60 * 60 * 1000,
+      now,
+      details,
+    })];
+    const prepaid = Number(config.prepaidBalance?.val);
+
+    if (Number.isFinite(prepaid) && prepaid > 0) {
+      items.push({ kind: 'info', key: `${prefix}:prepaid`, label: 'Prepaid balance', value: formatNumber(prepaid) });
+    }
+
+    return items;
+  }
+
   const used = Number(config?.used?.val);
   const limit = Number(config?.monthlyLimit?.val);
   const onDemandCap = Number(config?.onDemandCap?.val);
@@ -123,7 +149,7 @@ export async function createGrokProvider(env) {
       let billingResponse;
 
       try {
-        billingResponse = await fetch(BILLING_URL, { headers: grokHeaders(picked.token), signal: AbortSignal.timeout(15000) });
+      billingResponse = await fetch(`${BILLING_URL}?format=credits`, { headers: grokHeaders(picked.token), signal: AbortSignal.timeout(15000) });
       } catch (error) {
         return errorSnapshot('ERR', `request failed: ${error.message}`, startedAt);
       }

@@ -129,13 +129,13 @@ function grokEnv(dir, extra = {}) {
 
 test('Grok maps billing and settings responses into a credits bar with the plan name', async (t) => {
   const dir = await tempDir(t, 'tokensleft-grok-');
-  const calls = mockFetch(t, ({ url }) => (url.endsWith('/billing')
+  const calls = mockFetch(t, ({ url }) => (url.includes('/billing?format=credits')
     ? jsonResponse({
       config: {
-        used: { val: 1426 },
-        monthlyLimit: { val: 4000 },
-        onDemandCap: { val: 0 },
-        billingPeriodEnd: new Date(Date.now() + 86400_000).toISOString(),
+        currentPeriod: { type: 'USAGE_PERIOD_TYPE_WEEKLY', end: new Date(Date.now() + 86400_000).toISOString() },
+        creditUsagePercent: 82,
+        productUsage: [{ product: 'GrokBuild', usagePercent: 68 }],
+        prepaidBalance: { val: 0 },
       },
     })
     : jsonResponse({ subscription_tier_display: 'SuperGrok' })));
@@ -144,8 +144,10 @@ test('Grok maps billing and settings responses into a credits bar with the plan 
 
   assert.equal(snapshot.ok, true);
   assert.equal(snapshot.plan, 'SuperGrok');
-  assert.deepEqual(snapshot.items.map((item) => item.label), ['Credits']);
-  assert.equal(Math.round(snapshot.items[0].percent), 36);
+  assert.deepEqual(snapshot.items.map((item) => item.label), ['Weekly credits']);
+  assert.equal(Math.round(snapshot.items[0].percent), 82);
+  assert.deepEqual(snapshot.items[0].details, [{ label: 'GrokBuild', value: '68% used' }]);
+  assert.match(calls[0].url, /format=credits/);
   assert.equal(calls[0].options.headers.Authorization, 'Bearer grok-token');
   assert.equal(calls[0].options.headers['X-XAI-Token-Auth'], 'xai-grok-cli');
   assert.deepEqual(provider.alertItems(snapshot).map((item) => item.key), ['grok:credits']);
@@ -153,7 +155,7 @@ test('Grok maps billing and settings responses into a credits bar with the plan 
 
 test('Grok reports an unavailable quota when billing returns a zero monthly limit', async (t) => {
   const dir = await tempDir(t, 'tokensleft-grok-zero-limit-');
-  mockFetch(t, ({ url }) => (url.endsWith('/billing')
+  mockFetch(t, ({ url }) => (url.includes('/billing?format=credits')
     ? jsonResponse({
       config: {
         used: { val: 0 },
@@ -180,7 +182,7 @@ test('Grok reports an unavailable quota when billing returns a zero monthly limi
 test('Grok keeps the usage bar when the optional settings request fails', async (t) => {
   const dir = await tempDir(t, 'tokensleft-grok-settings-');
   mockFetch(t, ({ url }) => {
-    if (url.endsWith('/billing')) {
+    if (url.includes('/billing?format=credits')) {
       return jsonResponse({ config: { used: { val: 1 }, monthlyLimit: { val: 10 }, billingPeriodEnd: null } });
     }
 
