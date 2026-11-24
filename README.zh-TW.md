@@ -54,7 +54,6 @@ tokensleft [providers...] [options]
 - 額度請求不會經過 TokensLeft 服務，只會直連各 Provider 或使用你設定的 proxy；TokensLeft 沒有帳號系統、伺服器、分析或遙測。
 - Codex 的非官方 48 小時重置機率會匿名向 `willcodexquotareset.com` 取得，不會附帶憑證或帳號識別資訊。
 - Claude Code、Codex、Gemini CLI 與 Kimi Code 的本機用量只從電腦上的 CLI 紀錄計算，不會上傳；詳細模式會顯示輸入、快取輸入、輸出，以及有公開價格時的 API 費用估算。
-- 非預期重置歷史只會儲存在本機 `~/.tokensleft/reset-history.json`，內容僅有 Provider、額度項目名稱與偵測時間。
 - Claude 方案（2026-11-02 查核）：[Max](https://support.claude.com/en/articles/11049741-what-is-the-max-plan) 為每月 US$100，五小時及每週用量各為 Pro 的 5 倍；[Ultra](https://support.claude.com/en/articles/17728952-what-is-the-ultra-plan) 取代 Max 20x，每月仍為 US$200，每週用量為 Pro 的 10 倍，通過驗證後取消五小時限制。舊 Max 20x 憑證會顯示為 Ultra；額度條依 API 實際回傳顯示，保留未驗證帳號的暫時 Session 限制及 Fable 獨立週額度。Usage credits 與每月附贈的 API credits 分開計算。
 - OAuth 憑證需要時會安全更新並寫回；使用 `--read-only` 可停用刷新與永久憑證更新。
 

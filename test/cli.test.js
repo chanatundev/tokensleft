@@ -2,9 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { SOURCE_URL } from '../lib/meta.js';
 import {
-  formatPlainProviderBlock,
-  isNpxExecution,
-  plainOutputWidth,
+  normalizeProviderSnapshot,
   PROVIDERS,
   parseArgs,
   providerEnvironment,
@@ -52,20 +50,12 @@ test('resolveProviderSupport does not probe SQLite for unrelated providers', asy
   assert.deepEqual(support.supported, selected);
 });
 
-test('parseArgs validates --interval and supports the = form', () => {
-  assert.equal(parseArgs(['--interval', '30']).intervalMs, 30_000);
-  assert.equal(parseArgs(['--interval=45']).intervalMs, 45_000);
-  assert.throws(() => parseArgs(['--interval', 'claude']), /--interval expects a positive number/);
-  assert.throws(() => parseArgs(['claude', '--interval']), /--interval expects a positive number/);
-  assert.throws(() => parseArgs(['--interval=abc']), /--interval expects a positive number/);
-});
-
 test('parseArgs accepts provider positionals, dedupes, and combines with flags', () => {
-  const args = parseArgs(['claude', 'zai', 'claude', '--demo', '--interval', '30']);
+  const args = parseArgs(['claude', 'zai', 'claude', '--demo', '--read-only']);
 
   assert.deepEqual(args.providers, ['claude', 'zai']);
   assert.equal(args.demo, true);
-  assert.equal(args.intervalMs, 30_000);
+  assert.equal(args.readOnly, true);
   assert.equal(args.json, false);
 });
 
@@ -76,6 +66,48 @@ test('parseArgs rejects unknown providers and unknown options', () => {
 
 test('agy selects Antigravity without creating a duplicate provider', () => {
   assert.deepEqual(parseArgs(['agy', 'antigravity', '--read-only']).providers, ['antigravity']);
+});
+
+test('normalizes provider snapshots into compact remaining-quota data', () => {
+  assert.deepEqual(normalizeProviderSnapshot('codex', {
+    ok: true,
+    plan: 'plus',
+    items: [
+      { kind: 'usage', key: 'codex:week', label: 'Weekly', percent: 54, resetAt: '2026-11-27T01:30:05Z' },
+      { kind: 'info', key: 'codex:credits', label: 'Credits', value: 'included' },
+    ],
+    local: { huge: 'usage history must not be emitted' },
+  }), {
+    id: 'codex',
+    status: 'available',
+    plan: 'plus',
+    limits: [{ id: 'codex:week', label: 'Weekly', remainingPercent: 46, resetAt: '2026-11-27T01:30:05Z' }],
+    info: [{ label: 'Credits', value: 'included' }],
+  });
+});
+
+test('normalizes unavailable quota and provider errors without usage details', () => {
+  assert.deepEqual(normalizeProviderSnapshot('grok', {
+    ok: true,
+    plan: 'SuperGrok',
+    items: [{ kind: 'info', label: 'Credits', value: 'monthly quota unavailable' }],
+    local: { tokens: 123456 },
+  }), {
+    id: 'grok',
+    status: 'unavailable',
+    plan: 'SuperGrok',
+    limits: [],
+    info: [{ label: 'Credits', value: 'monthly quota unavailable' }],
+  });
+
+  assert.deepEqual(normalizeProviderSnapshot('claude', { ok: false, status: 'CRED', error: 'login expired', local: { tokens: 1 } }), {
+    id: 'claude',
+    status: 'error',
+    plan: null,
+    limits: [],
+    info: [],
+    error: { code: 'CRED', message: 'login expired' },
+  });
 });
 
 test('parseArgs recognizes help', () => {
@@ -93,20 +125,6 @@ test('parseArgs recognizes version and read-only mode', () => {
   );
 });
 
-test('isNpxExecution recognizes npm exec/npx without mistaking an npm script for it', () => {
-  assert.equal(isNpxExecution({ npm_command: 'exec', npm_lifecycle_event: 'npx' }), true);
-  assert.equal(isNpxExecution({ npm_execpath: '/usr/local/bin/npx-cli.js', npm_lifecycle_event: 'npx' }), true);
-  assert.equal(isNpxExecution({ npm_command: 'run-script', npm_lifecycle_event: 'npx' }), false);
-  assert.equal(isNpxExecution({}), false);
-});
-
-test('plain output width prefers terminal columns then COLUMNS', () => {
-  assert.equal(plainOutputWidth({ columns: 88 }, { COLUMNS: '55' }), 88);
-  assert.equal(plainOutputWidth({}, { COLUMNS: '55' }), 55);
-  assert.equal(plainOutputWidth({}, {}), 96);
-  assert.equal(plainOutputWidth({ columns: 999 }, {}), 160);
-});
-
 test('--version prints the installed package version without loading providers', async () => {
   const output = [];
   const realLog = console.log;
@@ -121,17 +139,6 @@ test('--version prints the installed package version without loading providers',
   assert.deepEqual(output, [VERSION]);
 });
 
-test('--once formatting strips terminal controls and Blessed tags at the final output sink', () => {
-  const provider = {
-    title: `Unsafe\x1b]0;owned\x07\u202E title`,
-    render: () => '{red-fg}safe{/red-fg} \x1b[31mowned\x1b[0m',
-  };
-  const output = formatPlainProviderBlock(provider, {}, 80, true);
-
-  assert.doesNotMatch(output, /\x1b|\x07|\u202E|\{\/?red-fg\}/);
-  assert.match(output, /safe owned/);
-});
-
 test('usage lists every provider id', () => {
   const text = usage();
 
@@ -140,6 +147,7 @@ test('usage lists every provider id', () => {
   }
 
   assert.match(text, /--read-only/);
+  assert.match(text, /JSON is the default output/);
   assert.match(text, /--version/);
   assert.ok(text.includes(`Source: ${SOURCE_URL}`));
 });

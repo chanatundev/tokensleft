@@ -1,7 +1,7 @@
 {
   "name": "tokensleft",
   "version": "0.9.6",
-  "description": "Terminal dashboard for AI subscription quotas — Claude Code, Codex, Gemini CLI, Kimi Code, Copilot, Grok, Antigravity, OpenCode, z.ai — with burn-rate forecasts and threshold alerts.",
+  "description": "Headless quota CLI for AI agents — Claude Code, Codex, Gemini CLI, Kimi Code, Copilot, Grok, Antigravity, OpenCode, and z.ai.",
   "license": "Apache-2.0",
   "author": "Chanatun Kohsuwan",
   "type": "module",
@@ -27,8 +27,6 @@
   },
   "keywords": [
     "cli",
-    "tui",
-    "dashboard",
     "quota",
     "rate-limit",
     "usage",
@@ -43,7 +41,6 @@
     "ai"
   ],
   "dependencies": {
-    "blessed": "^0.1.81",
     "undici": "^7.29.1"
   },
   "engines": {

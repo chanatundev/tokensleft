@@ -3,12 +3,6 @@ import { test } from 'node:test';
 import { DEFAULT_DEMO_IDS, makeDemoProviders } from '../lib/demo.js';
 import { stripBlessedTags } from '../lib/format.js';
 import { parseArgs, runCli } from '../lib/cli.js';
-import {
-  composeProviderColumns,
-  dashboardContentLayout,
-  providerBlocksFitColumn,
-  visibleCellWidth,
-} from '../lib/tui.js';
 
 const ALL_IDS = ['claude', 'codex', 'gemini', 'kimi', 'copilot', 'grok', 'antigravity', 'opencode', 'zai'];
 const FIXED_NOW = Date.parse('2026-07-14T12:00:00Z');
@@ -33,7 +27,7 @@ test('default demo mirrors a plausible detected-provider run', () => {
   assert.deepEqual(DEFAULT_DEMO_IDS, ['claude', 'codex', 'gemini', 'kimi', 'antigravity', 'zai']);
 });
 
-test('every demo provider keeps the full dashboard contract', async () => {
+test('every demo provider keeps the quota and alert contract', async () => {
   const providers = fixedDemo();
 
   assert.deepEqual(providers.map((provider) => provider.id), ALL_IDS);
@@ -45,12 +39,6 @@ test('every demo provider keeps the full dashboard contract', async () => {
     const snapshot = await provider.fetch();
     const status = provider.headerStatus(snapshot);
     assert.equal(status.ok, true, `${provider.id} reports OK`);
-
-    for (const mode of ['detail', 'compact']) {
-      const text = stripBlessedTags(provider.render(snapshot, 96, mode));
-      assert.ok(text.length > 0, `${provider.id} renders ${mode}`);
-      assert.ok(!text.includes('undefined'), `${provider.id} ${mode} has no undefined: ${text}`);
-    }
 
     const alerts = provider.alertItems(snapshot);
     assert.ok(alerts.length > 0, `${provider.id} has alert items`);
@@ -157,24 +145,6 @@ test('only the first Codex demo reset credit expires within the next hour', asyn
   assert.match(stripBlessedTags(provider.render(snapshot, 100, 'compact')), /⚠ next expires \d+m \d+s/);
 });
 
-test('default demo fits responsive compact and detail columns', async () => {
-  const now = Date.now();
-  const providers = makeDemoProviders(undefined, { clock: () => now, random: () => 0.5 });
-  const snapshots = await Promise.all(providers.map((provider) => provider.fetch()));
-
-  for (const [shellWidth, mode] of [[160, 'compact'], [208, 'detail']]) {
-    const layout = dashboardContentLayout(shellWidth, { mode, providerCount: providers.length });
-    const blocks = providers.map((provider, index) => (
-      `▌ ${provider.title}\n${provider.render(snapshots[index], layout.columnWidth, mode)}`
-    ));
-
-    assert.equal(layout.columns, 2);
-    assert.equal(providerBlocksFitColumn(blocks, layout.columnWidth), true, `${mode} blocks fit`);
-    const content = composeProviderColumns(blocks, layout, mode);
-    assert.ok(content.split('\n').every((line) => visibleCellWidth(line) <= layout.contentWidth));
-  }
-});
-
 test('CLI default demo uses the curated live-shaped provider set', async () => {
   const output = [];
   const realLog = console.log;
@@ -186,11 +156,8 @@ test('CLI default demo uses the curated live-shaped provider set', async () => {
     console.log = realLog;
   }
 
-  const text = output.join('\n');
-  for (const title of ['Claude Code', 'Codex', 'Gemini', 'Kimi Code', 'Antigravity', 'z.ai']) {
-    assert.match(text, new RegExp(`▌ ${title.replace('.', '\\.')}`));
-  }
-  assert.doesNotMatch(text, /▌ Copilot|▌ Grok|▌ OpenCode/);
+  const result = JSON.parse(output.join('\n'));
+  assert.deepEqual(result.providers.map((provider) => provider.id), ['claude', 'codex', 'gemini', 'kimi', 'antigravity', 'zai']);
 });
 
 test('makeDemoProviders filters by id for providers outside the default set', () => {
