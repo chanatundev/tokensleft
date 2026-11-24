@@ -16,6 +16,24 @@ tokensleft --read-only
 
 The CLI discovers credentials from supported tools already logged in on that machine. It sends quota requests directly to the relevant providers.
 
+## Supported agents
+
+TokensLeft can report quota for these agent CLIs and subscriptions. It reuses the login or key already configured for each tool; exact quota windows depend on the provider and account plan.
+
+| Provider ID | Compatible agent or service | Account / subscription |
+| --- | --- | --- |
+| `claude` | Claude Code (`claude`) | Claude account limits; also supports z.ai keys configured through Claude Code profiles under `zai`. |
+| `codex` | OpenAI Codex CLI (`codex`) | ChatGPT plan limits and Codex reset credits. |
+| `gemini` | Gemini CLI (`gemini`) | Google account quota and plan. |
+| `kimi` | Kimi Code (`kimi`) | Kimi Coding Plan; API keys can also be configured manually. |
+| `copilot` | GitHub Copilot | GitHub Copilot quota via `gh` authentication, editor sign-in, or a configured GitHub token. |
+| `grok` | Grok CLI (`grok`) | Grok subscription weekly credits and product breakdown. |
+| `antigravity` (`agy`) | Antigravity CLI or IDE | Google account quota for Antigravity; `agy` prefers the CLI login. |
+| `opencode` | OpenCode | OpenCode usage and Go quota where available. Requires Node.js 22.13 or newer. |
+| `zai` | z.ai / GLM Coding Plan | z.ai API key or a Claude Code profile pointed at z.ai. |
+
+To check a subset, pass provider IDs on the command line, for example `tokensleft codex grok --read-only`. A detected provider can still report an unavailable quota when the provider does not expose one for that account.
+
 ## Agent interface
 
 Every invocation prints one compact JSON document to stdout. By default it checks all detected providers. Pass provider IDs to check only selected services:
