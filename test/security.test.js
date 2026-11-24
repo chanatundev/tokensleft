@@ -134,7 +134,11 @@ test('Claude read-only mode does not refresh or rewrite expired credentials', as
   };
   t.after(() => { globalThis.fetch = originalFetch; });
 
-  const provider = await createClaudeProvider({ CLAUDE_CONFIG_DIR: dir, TOKENSLEFT_READ_ONLY: '1' });
+  const provider = await createClaudeProvider({
+    CLAUDE_CONFIG_DIR: dir,
+    CLAUDE_DISABLE_KEYCHAIN: '1',
+    TOKENSLEFT_READ_ONLY: '1',
+  });
   const snapshot = await provider.fetch();
   assert.equal(snapshot.results[0].status, 'EXPIRED');
   assert.match(snapshot.results[0].error, /read-only mode/i);

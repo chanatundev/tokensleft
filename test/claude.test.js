@@ -91,7 +91,11 @@ test('unsupported optional reset query falls back to ordinary usage; 429 is neve
       assert.equal(options.headers['User-Agent'], undefined);
       return new Response(JSON.stringify(SAMPLE_USAGE));
     };
-    const provider = await createClaudeProvider({ CLAUDE_CONFIG_DIR: configDir, CLAUDE_CODE_OAUTH_TOKEN: 'test-token' });
+    const provider = await createClaudeProvider({
+      CLAUDE_CONFIG_DIR: configDir,
+      CLAUDE_DISABLE_SYSTEM_KEY: '1',
+      CLAUDE_CODE_OAUTH_TOKEN: 'test-token',
+    });
     const snapshot = await provider.fetch();
     assert.equal(requests.length, status === 429 ? 1 : 2);
     assert.equal(snapshot.results[0].ok, status !== 429);
