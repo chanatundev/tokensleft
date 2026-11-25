@@ -50,18 +50,18 @@ The default output is one concise sentence per provider, including status, plan,
 Each detected provider gets one line. Optional sections are omitted when the provider does not report that data:
 
 ```text
-<Provider>: <status>[ on <plan>][ — <quota label>: <percent>% remaining[, resets at <timestamp>][; <another quota>...]][; <info label>: <info value>...][; <error message>].
+<Provider>: <status>[ on <plan>][ — <quota label>: <percent>% remaining[, <N> percentage points ahead of usage pace|<N> percentage points behind usage pace|on pace][, resets at <timestamp>][; <another quota>...]][; <info label>: <info value>...][; <error message>].
 ```
 
 Examples:
 
 ```text
-Codex: available on plus — Weekly: 46% remaining, resets at 2026-11-27T01:30:05Z.
+Codex: available on plus — Weekly: 46% remaining, 8 percentage points ahead of usage pace, resets at 2026-11-27T01:30:05Z.
 Grok: unavailable on SuperGrok — Credits: monthly quota unavailable.
 Claude Code: error — OAuth token expired. Run Claude Code and sign in again.
 ```
 
-Statuses are `available`, `unavailable`, `not detected`, `unsupported`, and `error`. Remaining percentages are rounded to whole numbers; missing percentages or reset times are omitted or described as unknown. This prose format is intended to be easy for agents to read, not a strict parsing contract; use `--json` when stable fields are needed.
+Statuses are `available`, `unavailable`, `not detected`, `unsupported`, and `error`. Remaining percentages are rounded to whole numbers; missing percentages or reset times are omitted or described as unknown. When the provider reports a usage pace, the line compares quota used with the portion of the quota window elapsed: positive differences say `ahead of usage pace`, negative differences say `behind usage pace`, and differences within 2 percentage points say `on pace`. This prose format is intended to be easy for agents to read, not a strict parsing contract; use `--json` when stable fields are needed.
 
 Statuses are `available`, `unavailable`, `not_detected`, `unsupported`, and `error`. An unavailable quota is distinct from zero remaining. When no selected provider can return a snapshot, the CLI exits with status 2.
 

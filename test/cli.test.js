@@ -137,6 +137,22 @@ test('natural-language output distinguishes unavailable, errors, and unknown per
   assert.match(output, /Codex: available — Weekly: remaining percentage unknown\./);
 });
 
+test('natural-language quota lines include pace when the provider reports it', () => {
+  const output = formatNaturalLanguage({ providers: [{
+    id: 'codex', status: 'available', plan: 'plus',
+    limits: [
+      { id: 'fast', label: 'Weekly', remainingPercent: 46, paceDelta: 18, resetAt: '2026-11-27T00:00:00Z' },
+      { id: 'slow', label: 'Session', remainingPercent: 82, paceDelta: -12, resetAt: null },
+      { id: 'steady', label: 'Monthly', remainingPercent: 63, paceDelta: 1, resetAt: null },
+    ],
+    info: [],
+  }] });
+
+  assert.match(output, /Weekly: 46% remaining, 18 percentage points ahead of usage pace, resets at/);
+  assert.match(output, /Session: 82% remaining, 12 percentage points behind usage pace/);
+  assert.match(output, /Monthly: 63% remaining, on pace/);
+});
+
 test('parseArgs recognizes help', () => {
   assert.equal(parseArgs(['-h']).help, true);
   assert.equal(parseArgs(['--help']).help, true);
@@ -194,7 +210,9 @@ test('--json preserves the structured JSON provider schema', async () => {
     console.log = realLog;
   }
 
-  assert.equal(JSON.parse(output[0]).providers[0].id, 'codex');
+  const payload = JSON.parse(output[0]);
+  assert.equal(payload.providers[0].id, 'codex');
+  assert.ok(payload.providers.every((provider) => provider.limits.every((limit) => !('paceDelta' in limit))));
 });
 
 test('usage lists every provider id', () => {
