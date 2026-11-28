@@ -88,7 +88,7 @@ Antigravity can also be selected as `agy`.
 
 ## Credentials and privacy
 
-TokensLeft reads existing local CLI logins or manually configured keys in `~/.tokensleft/.env` or `./.env`; see [.env.example](.env.example). Provider-specific credential paths and options are documented in the provider code and help output. On Linux, Antigravity CLI keyring access requires `secret-tool` from `libsecret-tools` and an unlocked keyring.
+TokensLeft reads existing local CLI logins or manually configured keys in `~/.tokensleft/.env` or `./.env`; see [.env.example](.env.example). For Antigravity CLI (`agy`), it reads the OAuth login from the system keyring when available, or from `~/.gemini/antigravity-cli/antigravity-oauth-token` on newer `agy` installs. It reads the credential only; `agy` remains responsible for refreshing it. On Linux, keyring access requires `secret-tool` from `libsecret-tools` and an unlocked keyring; the OAuth-file fallback does not require keyring access.
 
 Quota requests go directly to providers or through your configured proxy. TokensLeft has no hosted account or telemetry service. Use `--read-only` when the orchestrator must not refresh or persist credentials.
 
